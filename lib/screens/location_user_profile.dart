@@ -7,11 +7,12 @@ import 'dart:math'; // Import math library for acos function
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:voyageventure/features/current_location.dart';
-import 'package:voyageventure/location_signuplogin.dart';
 import 'package:voyageventure/utils.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/intl.dart';
+
+import 'location_signup_login.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({Key? key}) : super(key: key);
@@ -88,7 +89,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
- Future<void> updatePhoneNumber(String phoneNumber) async {
+  Future<void> updatePhoneNumber(String phoneNumber) async {
   final FirebaseAuth auth = FirebaseAuth.instance;
   final User? user = auth.currentUser;
 
@@ -110,7 +111,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 }
 
-Future<void> changePassword(String newPassword) async {
+  Future<void> changePassword(String newPassword) async {
   final FirebaseAuth auth = FirebaseAuth.instance;
   final User? user = auth.currentUser;
 

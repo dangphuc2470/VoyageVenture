@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_google_maps_webservices/places.dart';
-import 'package:voyageventure/models/fetch_photo_url.dart';
 import 'package:http/http.dart' as http;
+import 'package:voyageventure/models/place_photo_url.dart';
 import 'package:voyageventure/utils.dart';
 
 class PlaceSearch_ {
@@ -21,25 +21,7 @@ class PlaceSearch_ {
     this.photoUrls,
   });
 
-static Future<String> getPhotoUrls(String id, int width, int height) async {
-  var value = await fetchPhotoUrls(id);
-  if (value.isEmpty) {
-    return "";
-  }
-  String photoID = value.first;
-  if (photoID.contains("/"))
-  {
-    photoID =   photoID.split("/").last;
-  }
-  final response = await http.get(Uri.parse("https://places.googleapis.com/v1/places/${id}/photos/${photoID}/media?maxHeightPx=${height}&maxWidthPx=${width}&key=${dotenv.env['MAPS_API_KEY1']}&skipHttpRedirect=true"));
-  if (response.statusCode == 200) {
-    var jsonResponse = jsonDecode(response.body);
-    String photoUri = jsonResponse['photoUri'];
-    return photoUri;
-  } else {
-    throw Exception('Failed to load photos');
-  }
-}
+
 
 
   @override

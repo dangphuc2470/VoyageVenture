@@ -12,7 +12,6 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/intl.dart';
 
-import 'location_userprofile.dart';
 
 class LoginSignupPage extends StatefulWidget {
   const LoginSignupPage({super.key});
@@ -68,7 +67,6 @@ class _LoginSignupPageState extends State<LoginSignupPage> {
     });
   }
 
-  // Login/Signup logic using FirebaseAuth (replace with your implementation)
   Future<void> _handleLoginSignup(BuildContext context) async {
     // Validate email and password (replace with your validation logic)
     if (!_formKey.currentState!.validate()) {

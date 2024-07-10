@@ -1,3 +1,8 @@
+// This file only use to summarize the structure
+// of the app so the developer can easily navigate through the codebase.
+
+
+
 // Maps
 
 // Horizontal list and location button

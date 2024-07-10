@@ -9,18 +9,15 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:voyageventure/components/custom_search_field.dart';
 import 'package:voyageventure/components/route_planning_list_tile.dart';
 import 'package:voyageventure/components/navigation_list_tile.dart';
 import 'package:voyageventure/components/misc_widget.dart';
 import 'package:voyageventure/components/waypoint_list.dart';
 import 'package:voyageventure/constants.dart';
-import 'package:voyageventure/models/fetch_photo_url.dart';
 import 'package:voyageventure/models/route_calculate_response.dart';
 import 'package:voyageventure/utils.dart';
 import 'package:voyageventure/features/current_location.dart';
-import '../MyLocationSearch/my_location_search.dart';
 import '../components/bottom_sheet_component.dart';
 import '../components/custom_search_delegate.dart';
 import '../components/end_location_list.dart';
@@ -28,7 +25,9 @@ import '../components/fonts.dart';
 import '../components/loading_indicator.dart';
 import '../components/location_list_tile.dart';
 import '../components/route_planning_list.dart';
-import '../location_sharing.dart';
+import '../features/place_search_autocomplete.dart';
+import '../models/place_photo_url.dart';
+import 'location_sharing.dart';
 import '../models/map_style.dart';
 import '../models/place_autocomplete.dart';
 import '../models/place_search.dart';
@@ -70,7 +69,6 @@ class _MyHomeScreenState extends State<MyHomeScreen>
     );
     controller.animateCamera(CameraUpdate.newCameraPosition(cameraPosition));
   }
-
   void animateToPositionNoZoom(LatLng position) async {
     logWithTag("Animate to position: $position", tag: "MyHomeScreen");
     GoogleMapController controller = await _mapsController.future;
@@ -79,6 +77,46 @@ class _MyHomeScreenState extends State<MyHomeScreen>
       zoom: await controller.getZoomLevel(),
     );
     controller.animateCamera(CameraUpdate.newCameraPosition(cameraPosition));
+  }
+  Future<void> placeClickLatLngFromMap(LatLng position) async {
+    animateToPositionNoZoom(
+      LatLng(position.latitude, position.longitude),
+    );
+    isShowPlaceHorizontalList = false;
+    changeState("Loading Can Route");
+    mapData.changeDestinationLocationLatLgn(position);
+    setState(() {
+      myMarker = [];
+      waypointsLatLgn = [];
+      waypointNames = [];
+      final markerId = MarkerId("0");
+      Marker marker = Marker(
+        markerId: markerId,
+        icon: mainMarker,
+        position: LatLng(position.latitude, position.longitude),
+      );
+      myMarker.add(marker);
+    });
+    try {
+      String placeString = await convertLatLngToAddress(position);
+      var value = await placeSearchSingle(placeString);
+      if (value != null) {
+        getPhotoUrls(value.id!, 400, 400).then((photoUrls) {
+          value.photoUrls = photoUrls;
+          setState(() {
+            mapData.changeDestinationImage(photoUrls);
+          });
+        });
+        markedPlace = value;
+        mapData.changeDestinationAddressAndPlaceNameAndImage(value);
+        if (state == stateMap["Loading Can Route"]!)
+          changeState("Search Results");
+      } else if (state == stateMap["Loading Can Route"]!)
+        changeState("Search Results None");
+    } catch (e) {
+      logWithTag("Error, place click from map: $e",
+          tag: "SearchLocationScreen");
+    }
   }
 
   //Location
@@ -443,7 +481,7 @@ class _MyHomeScreenState extends State<MyHomeScreen>
           placeSearchList = searchList;
           for (int i = 0; i < placeSearchList.length; i++) {
             if (placeSearchList[i].id != null) {
-              PlaceSearch_.getPhotoUrls(placeSearchList[i].id!, 500, 500)
+              getPhotoUrls(placeSearchList[i].id!, 500, 500)
                   .then((photoUrls) {
                 setState(() {
                   placeSearchList[i].photoUrls = photoUrls;
@@ -537,46 +575,6 @@ class _MyHomeScreenState extends State<MyHomeScreen>
     }
   }
 
-  Future<void> placeClickLatLngFromMap(LatLng position) async {
-    animateToPositionNoZoom(
-      LatLng(position.latitude, position.longitude),
-    );
-    isShowPlaceHorizontalList = false;
-    changeState("Loading Can Route");
-    mapData.changeDestinationLocationLatLgn(position);
-    setState(() {
-      myMarker = [];
-      waypointsLatLgn = [];
-      waypointNames = [];
-      final markerId = MarkerId("0");
-      Marker marker = Marker(
-        markerId: markerId,
-        icon: mainMarker,
-        position: LatLng(position.latitude, position.longitude),
-      );
-      myMarker.add(marker);
-    });
-    try {
-      String placeString = await convertLatLngToAddress(position);
-      var value = await placeSearchSingle(placeString);
-      if (value != null) {
-        PlaceSearch_.getPhotoUrls(value.id!, 400, 400).then((photoUrls) {
-          value.photoUrls = photoUrls;
-          setState(() {
-            mapData.changeDestinationImage(photoUrls);
-          });
-        });
-        markedPlace = value;
-        mapData.changeDestinationAddressAndPlaceNameAndImage(value);
-        if (state == stateMap["Loading Can Route"]!)
-          changeState("Search Results");
-      } else if (state == stateMap["Loading Can Route"]!)
-        changeState("Search Results None");
-    } catch (e) {
-      logWithTag("Error, place click from map: $e",
-          tag: "SearchLocationScreen");
-    }
-  }
 
   Future<LatLng?> placeOnclickFromList(
       {required bool isShowPlaceHorizontalListFromSearch,
@@ -638,44 +636,32 @@ class _MyHomeScreenState extends State<MyHomeScreen>
     return null;
   }
 
-  void drawRoute() {
-    if (routes.isNotEmpty) {
-      setState(() {
-        polylines = [];
-        for (int i = 0; i < routes[0].legs.length; i++) {
-          List<LatLng> legPoints = Polyline_.decodePolyline(
-              routes[0].legs[i].polyline.encodedPolyline);
-
-          int width;
-          switch (i % 3) {
-            case 0:
-              width = 8;
-              break;
-            case 1:
-              width = 6;
-              break;
-            case 2:
-              width = 4;
-              break;
-            default:
-              width = 8;
-          }
-
-          polylines.add(
-            Polyline(
-              polylineId: PolylineId(i.toString()),
-              color: polylineColors[i % polylineColors.length],
-              // Use a different color for each leg
-              width: width,
-              // Use different widths for each polyline
-              points: legPoints, // Add all points of the leg to the polyline
-            ),
-          );
-        }
-      });
+  void changeMainMarker(int index) {
+    for (int i = 0; i < myMarker.length; i++) {
+      Marker marker = myMarker[i];
+      if (marker.icon == mainMarker) {
+        Marker newMarker = Marker(
+          markerId: marker.markerId,
+          icon: defaultMarker,
+          position: marker.position,
+          //infoWindow: marker.infoWindow,
+        );
+        myMarker[i] = newMarker;
+      }
     }
-    //showAllMarkerInfo();
+
+    Marker markerAtIndex = myMarker[index];
+    Marker newMarkerAtIndex = Marker(
+      markerId: markerAtIndex.markerId,
+      icon: mainMarker,
+      position: markerAtIndex.position,
+      //infoWindow: markerAtIndex.infoWindow,
+    );
+    setState(() {
+      myMarker[index] = newMarkerAtIndex;
+    });
   }
+
 
   // Future<void> showAllMarkerInfo() async {
   //   GoogleMapController controller = await _mapsController.future;
@@ -684,11 +670,7 @@ class _MyHomeScreenState extends State<MyHomeScreen>
   //   }
   // }
 
-  void clearRoute() {
-    setState(() {
-      polylines.clear();
-    });
-  }
+
 
   Future<void> calcRouteFromDepToDes() async {
     //Todo remove after test waypoint
@@ -738,6 +720,51 @@ class _MyHomeScreenState extends State<MyHomeScreen>
     mapData.changeDepartureLocation(from);
     mapData.changeDestinationLocationLatLgn(to);
     // Todo: mapdata
+  }
+
+  void drawRoute() {
+    if (routes.isNotEmpty) {
+      setState(() {
+        polylines = [];
+        for (int i = 0; i < routes[0].legs.length; i++) {
+          List<LatLng> legPoints = Polyline_.decodePolyline(
+              routes[0].legs[i].polyline.encodedPolyline);
+
+          int width;
+          switch (i % 3) {
+            case 0:
+              width = 8;
+              break;
+            case 1:
+              width = 6;
+              break;
+            case 2:
+              width = 4;
+              break;
+            default:
+              width = 8;
+          }
+
+          polylines.add(
+            Polyline(
+              polylineId: PolylineId(i.toString()),
+              color: polylineColors[i % polylineColors.length],
+              // Use a different color for each leg
+              width: width,
+              // Use different widths for each polyline
+              points: legPoints, // Add all points of the leg to the polyline
+            ),
+          );
+        }
+      });
+    }
+    //showAllMarkerInfo();
+  }
+
+  void clearRoute() {
+    setState(() {
+      polylines.clear();
+    });
   }
 
   Future<void> updateEndLocationAddress() async {
@@ -835,31 +862,7 @@ class _MyHomeScreenState extends State<MyHomeScreen>
     return;
   }
 
-  void changeMainMarker(int index) {
-    for (int i = 0; i < myMarker.length; i++) {
-      Marker marker = myMarker[i];
-      if (marker.icon == mainMarker) {
-        Marker newMarker = Marker(
-          markerId: marker.markerId,
-          icon: defaultMarker,
-          position: marker.position,
-          //infoWindow: marker.infoWindow,
-        );
-        myMarker[i] = newMarker;
-      }
-    }
 
-    Marker markerAtIndex = myMarker[index];
-    Marker newMarkerAtIndex = Marker(
-      markerId: markerAtIndex.markerId,
-      icon: mainMarker,
-      position: markerAtIndex.position,
-      //infoWindow: markerAtIndex.infoWindow,
-    );
-    setState(() {
-      myMarker[index] = newMarkerAtIndex;
-    });
-  }
 
 /*
  * End of functions

@@ -9,16 +9,17 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:math'; // Import math library for acos function
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:voyageventure/MyHomeScreen/my_home_screen.dart';
 import 'package:voyageventure/features/current_location.dart';
 import 'package:voyageventure/utils.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'location_signuplogin.dart';
-import 'location_userprofile.dart';
+import 'home_screen.dart';
+import 'location_signup_login.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+
+import 'location_user_profile.dart';
 
 class LocationSharing extends StatefulWidget {
   const LocationSharing({super.key});
@@ -60,6 +61,7 @@ class _LocationSharingState extends State<LocationSharing> {
   FirebaseFirestore get firestore =>
       FirebaseFirestore
           .instance; // Function to add a user to the Firestore database
+
   Future<void> addUser(String userId, String name, GeoPoint location) async {
     // Create a new document with the user ID
     final userRef = firestore.collection('users').doc(userId);
@@ -96,22 +98,6 @@ class _LocationSharingState extends State<LocationSharing> {
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
-    setInitialLocation();
-    updateFriendLocations();
-
-    BitmapDescriptorHelper.getBitmapDescriptorFromSvgAsset(
-        "assets/icons/default_friends_marker.svg", const Size(100, 100))
-        .then((bitmapDescriptor) {
-      setState(() {
-        defaultMarker = bitmapDescriptor;
-      });
-    });
-
-    final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  }
 
   Future<void> setInitialLocation() async {
     Position position = await getCurrentLocation();
@@ -245,11 +231,6 @@ class _LocationSharingState extends State<LocationSharing> {
     };
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-    _positionStream.cancel();
-  }
 
   final GoogleSignIn googleSignIn = GoogleSignIn();
   final FirebaseAuth firebaseAuth = FirebaseAuth.instance;
@@ -257,6 +238,30 @@ class _LocationSharingState extends State<LocationSharing> {
   bool isLoggedIn = false;
   String? _selectedFriendId;
   Map<String, dynamic>? userData;
+
+  @override
+  void initState() {
+    super.initState();
+    setInitialLocation();
+    updateFriendLocations();
+
+    BitmapDescriptorHelper.getBitmapDescriptorFromSvgAsset(
+        "assets/icons/default_friends_marker.svg", const Size(100, 100))
+        .then((bitmapDescriptor) {
+      setState(() {
+        defaultMarker = bitmapDescriptor;
+      });
+    });
+
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  }
+
+
+  @override
+  void dispose() {
+    super.dispose();
+    _positionStream.cancel();
+  }
 
   @override
   Widget build(BuildContext context) {
