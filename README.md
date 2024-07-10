@@ -41,7 +41,9 @@ To get started with this project, ensure you have Flutter installed on your deve
 4. Enable the necessary APIs (Maps SDK, Places API) in your Google Cloud Platform project and obtain an API key.
 5. Open the `local.properties` file in the `android` directory of the project and add the following line to the file: `MAPS_API_KEY1=YOUR_API_KEY`, replacing `YOUR_API_KEY` with your actual API key.
 
-6. Insert your API key from above to the appropriate location within the app (usually in the Android manifest or iOS plist file).
+6. Do the same with the `.env` file in root directory
+
+7. Insert your API key from above to the appropriate location within the app (usually in the Android manifest or iOS plist file).
 
 This API key only use for Geolocation
 ```xml
@@ -64,8 +66,8 @@ final response = await http.get(Uri.parse(
       'https://places.googleapis.com/v1/places/${placeID}?fields=photos&key=${dotenv.env['MAPS_API_KEY1']}'));
 ```
 
-7. Run `flutter pub get` to install all the dependencies.
-8. Build and run the app on your device or emulator.
+8. Run `flutter pub get` to install all the dependencies.
+9. Build and run the app on your device or emulator.
 
 ## Screenshot
 
