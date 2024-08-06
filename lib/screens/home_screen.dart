@@ -18,6 +18,7 @@ import 'package:voyageventure/constants.dart';
 import 'package:voyageventure/models/route_calculate_response.dart';
 import 'package:voyageventure/utils.dart';
 import 'package:voyageventure/features/current_location.dart';
+import '../bottom_sheets/bottom_sheet_loading.dart';
 import '../components/bottom_sheet_component.dart';
 import '../components/custom_search_delegate.dart';
 import '../components/end_location_list.dart';
@@ -40,188 +41,9 @@ class MyHomeScreen extends StatefulWidget {
 
 class _MyHomeScreenState extends State<MyHomeScreen>
     with SingleTickerProviderStateMixin {
-  //Controller
-  final Completer<GoogleMapController> _mapsController = Completer();
-  ScrollController _listviewScrollController = ScrollController();
-  DraggableScrollableController _dragableController =
-  DraggableScrollableController();
-  double? bottomSheetTop;
-  String textFieldTopText = "Tìm kiếm";
-  String textFieldBottomText = "";
-
-  //Animation
-  late AnimationController _animationController;
-  late Animation<double> moveAnimation;
-
-  //double currentZoomLevel = 15;
-
-  //GeoLocation
   MapData mapData = MapData();
-  bool isHaveLastSessionLocation = false;
-  LatLng centerLocation = LatLng(10.7981542, 106.6614047);
+  
 
-  void animateToPosition(LatLng position, {double zoom = 13}) async {
-    logWithTag("Animate to position: $position", tag: "MyHomeScreen");
-    GoogleMapController controller = await _mapsController.future;
-    CameraPosition cameraPosition = CameraPosition(
-      target: position,
-      zoom: zoom, // Change this value to your desired zoom level
-    );
-    controller.animateCamera(CameraUpdate.newCameraPosition(cameraPosition));
-  }
-  void animateToPositionNoZoom(LatLng position) async {
-    logWithTag("Animate to position: $position", tag: "MyHomeScreen");
-    GoogleMapController controller = await _mapsController.future;
-    CameraPosition cameraPosition = CameraPosition(
-      target: position,
-      zoom: await controller.getZoomLevel(),
-    );
-    controller.animateCamera(CameraUpdate.newCameraPosition(cameraPosition));
-  }
-  Future<void> placeClickLatLngFromMap(LatLng position) async {
-    animateToPositionNoZoom(
-      LatLng(position.latitude, position.longitude),
-    );
-    isShowPlaceHorizontalList = false;
-    changeState("Loading Can Route");
-    mapData.changeDestinationLocationLatLgn(position);
-    setState(() {
-      myMarker = [];
-      waypointsLatLgn = [];
-      waypointNames = [];
-      final markerId = MarkerId("0");
-      Marker marker = Marker(
-        markerId: markerId,
-        icon: mainMarker,
-        position: LatLng(position.latitude, position.longitude),
-      );
-      myMarker.add(marker);
-    });
-    try {
-      String placeString = await convertLatLngToAddress(position);
-      var value = await placeSearchSingle(placeString);
-      if (value != null) {
-        getPhotoUrls(value.id!, 400, 400).then((photoUrls) {
-          value.photoUrls = photoUrls;
-          setState(() {
-            mapData.changeDestinationImage(photoUrls);
-          });
-        });
-        markedPlace = value;
-        mapData.changeDestinationAddressAndPlaceNameAndImage(value);
-        if (state == stateMap["Loading Can Route"]!)
-          changeState("Search Results");
-      } else if (state == stateMap["Loading Can Route"]!)
-        changeState("Search Results None");
-    } catch (e) {
-      logWithTag("Error, place click from map: $e",
-          tag: "SearchLocationScreen");
-    }
-  }
-
-  //Location
-  List<PlaceAutocomplete_> placeAutoList = [];
-  List<PlaceSearch_> placeSearchList = [];
-  late PlaceSearch_ markedPlace;
-  bool placeFound = true;
-  List<Marker> myMarker = [];
-  BitmapDescriptor defaultMarker =
-  BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
-  BitmapDescriptor mainMarker =
-  BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
-  BitmapDescriptor endLocationMarker =
-  BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
-
-  List<BitmapDescriptor> waypointMarkers = [
-    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-    //A
-    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
-    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
-    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
-    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
-    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueMagenta),
-    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
-    //H
-    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-    //No letter
-  ];
-
-  List<String> waypointMarkersSource = [
-    "assets/icons/waypoints/a.svg",
-    "assets/icons/waypoints/b.svg",
-    "assets/icons/waypoints/c.svg",
-    "assets/icons/waypoints/d.svg",
-    "assets/icons/waypoints/e.svg",
-    "assets/icons/waypoints/f.svg",
-    "assets/icons/waypoints/g.svg",
-    "assets/icons/waypoints/h.svg",
-    "assets/icons/marker_waypoint.svg",
-  ];
-  Timer? _debounce;
-  bool isShowPlaceHorizontalList = false; // show the location search component
-  bool isShowPlaceHorizontalListFromSearch =
-  true; // true: show from search, false: show from autocomplete
-
-  //Route
-  List<Route_> routes = [];
-
-  // Future<List<LatLng>?> polylinePoints = Future.value(null);
-  List<Polyline> polylines = [];
-  List<LatLng> polylinePointsList = [];
-  List<Color> polylineColors = [
-    Colors.green[700]!,
-    Colors.blue[700]!,
-    Colors.yellow[700]!,
-    Colors.purple[700]!,
-    Colors.orange[700]!,
-    Colors.brown[700]!,
-    Colors.cyan[700]!,
-    Colors.lime[700]!,
-    Colors.teal[700]!,
-    Colors.indigo[700]!,
-  ];
-  String travelMode = "DRIVE";
-  String routingPreference = "TRAFFIC_AWARE";
-  bool isTrafficAware = true;
-  bool isComputeAlternativeRoutes = false;
-  bool isAvoidTolls = false;
-  bool isAvoidHighways = false;
-  bool isAvoidFerries = false;
-  bool isFullScreen = false;
-  List<bool> isChange = [false, false, false, false, false, false];
-  bool isCalcRouteFromCurrentLocation = true;
-  List<LatLng> waypointsLatLgn = [];
-  List<String> waypointNames = [];
-
-  //Test
-
-  static CameraPosition? _initialCameraPosition;
-  static const LatLng _airPort = LatLng(10.8114795, 106.6548157);
-  static const LatLng _dormitory = LatLng(10.8798036, 106.8052206);
-
-  //State
-  static const Map<String, int> stateMap = {
-    "Default": 0,
-    "Search": 1,
-    "Search Results": 2,
-    "Route Planning": 3,
-    "Navigation": 4,
-    "Search Results None": 5,
-    "Loading Can Route": 6,
-    "Add Waypoint": 7,
-    "Loading": 10,
-  };
-  int state = stateMap["Default"]!;
-
-  String stateFromInt(int stateValue) {
-    return stateMap.entries
-        .firstWhere((entry) => entry.value == stateValue)
-        .key;
-  }
-
-  //Map style
-  MapType _currentMapType = MapType.normal;
   final List<dynamic> _mapThemes = [
     {
       'name': 'Satellite',
@@ -273,594 +95,7 @@ class _MyHomeScreenState extends State<MyHomeScreen>
     }
   ];
 
-  //Search Field
-  late TextEditingController _searchFieldControllerTop;
-  late TextEditingController _searchFieldControllerBottom;
-  late FocusNode _searchFieldFocusNodeTop;
-  late FocusNode _searchFieldFocusNodeBottom;
-
-/*
- * This region contains functions.
- */
-  // void showPlaceHorizontalList(
-  //     {required bool show, String nextState = "Default"}) {
-  //     isShowPlaceHorizontalList = show;
-  //     show == false
-  //         ? changeState(nextState)
-  //         : changeState("Search Results");
-  // }
-  void updateOptionsBasedOnChanges() {
-    for (int i = 0; i < isChange.length; i++) {
-      if (isChange[i]) {
-        switch (i) {
-          case 0:
-            isTrafficAware = !isTrafficAware;
-            break;
-          case 1:
-            isComputeAlternativeRoutes = !isComputeAlternativeRoutes;
-            break;
-          case 2:
-            isAvoidTolls = !isAvoidTolls;
-            break;
-          case 3:
-            isAvoidHighways = !isAvoidHighways;
-            break;
-          case 4:
-            isAvoidFerries = !isAvoidFerries;
-            break;
-          case 5:
-            isFullScreen = !isFullScreen;
-            break;
-        }
-        // Reset the change flag for this option
-        isChange[i] = false;
-      }
-    }
-  }
-
-  void showOptionsDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Tùy chọn đường đi'),
-              content: SingleChildScrollView(
-                child: ListBody(
-                  children: <Widget>[
-                    CheckboxListTile(
-                      title: const Text('Ảnh hưởng giao thông'),
-                      value: isTrafficAware,
-                      onChanged: (bool? value) {
-                        setState(() {
-                          isTrafficAware = value!;
-                          isChange[0] = true;
-                        });
-                      },
-                    ),
-                    CheckboxListTile(
-                      title: const Text('Tính đường đi thay thế'),
-                      value: isComputeAlternativeRoutes,
-                      onChanged: (bool? value) {
-                        setState(() {
-                          isComputeAlternativeRoutes = value!;
-                          isChange[1] = true;
-                        });
-                      },
-                    ),
-                    CheckboxListTile(
-                      title: const Text('Tránh trạm thu phí'),
-                      value: isAvoidTolls,
-                      onChanged: (bool? value) {
-                        setState(() {
-                          isAvoidTolls = value!;
-                          isChange[2] = true;
-                        });
-                      },
-                    ),
-                    CheckboxListTile(
-                      title: const Text('Tránh đường cao tốc'),
-                      value: isAvoidHighways,
-                      onChanged: (bool? value) {
-                        setState(() {
-                          isAvoidHighways = value!;
-                          isChange[3] = true;
-                        });
-                      },
-                    ),
-                    CheckboxListTile(
-                      title: const Text('Tránh phà'),
-                      value: isAvoidFerries,
-                      onChanged: (bool? value) {
-                        setState(() {
-                          isAvoidFerries = value!;
-                          isChange[4] = true;
-                        });
-                      },
-                    ),
-                    CheckboxListTile(
-                      title: const Text('Hiện các điểm rẽ'),
-                      value: isFullScreen,
-                      onChanged: (bool? value) {
-                        setState(() {
-                          isFullScreen = value!;
-                          isChange[5] = true;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  child: const Text('Hủy bỏ'),
-                  onPressed: () {
-                    setState(() {
-                      updateOptionsBasedOnChanges();
-                    });
-                    logWithTag(
-                        "Options: $isTrafficAware, $isComputeAlternativeRoutes, $isAvoidTolls, $isAvoidHighways, $isAvoidFerries",
-                        tag: "SearchLocationScreen");
-                    Navigator.of(context).pop();
-                  },
-                ),
-                TextButton(
-                  child: const Text('Áp dụng'),
-                  onPressed: () {
-                    if (isFullScreen) {
-                      Navigator.of(context).pop();
-                      changeState("Navigation");
-                      return;
-                    }
-
-                    logWithTag(
-                        "Options: $isTrafficAware, $isComputeAlternativeRoutes, $isAvoidTolls, $isAvoidHighways, $isAvoidFerries",
-                        tag: "SearchLocationScreen");
-                    calcRoute(
-                        from: mapData.departureLocation!,
-                        to: mapData.destinationLocationLatLgn!);
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void changeState(String stateString) {
-    if (!stateMap.containsKey(stateString)) {
-      throw Exception('Invalid state: $stateString');
-    }
-
-    if (stateString != "Navigation") {
-      isFullScreen = false;
-      deleteEndLocationsFromMarkers();
-    } else
-      addEndLocationsToMarkers();
-    if (stateString == "Default") {
-      isShowPlaceHorizontalList = false;
-      polylines.clear();
-      travelMode = "DRIVE";
-      mapData.departureLocation = mapData.currentLocation;
-      mapData.departureLocationName = "Vị trí hiện tại";
-    }
-
-    if (stateString == "Search Results") {
-      isShowPlaceHorizontalList = true;
-      polylines.clear();
-      travelMode = "TWO_WHEELER";
-      //Todo remove after test waypoint
-      //waypointsLatLgn = [];
-    } else {
-      isShowPlaceHorizontalList = false;
-    }
-
-    if (stateString == "Route Planning") {
-      drawRoute();
-    } else if (stateString == "Add Waypoint") {}
-
-    setState(() {
-      state = stateMap[stateString]!;
-    });
-  }
-
-  void searchPlaceAndUpdate(String text) {
-    if (text.isEmpty) {
-      placeFound = true;
-      placeSearchList.clear();
-      setState(() {});
-    } else {
-      myMarker = [];
-      logWithTag("Place search: $text", tag: "SearchLocationScreen");
-      placeSearch(text).then((searchList) => setState(() {
-        if (searchList != null) {
-          placeSearchList = searchList;
-          for (int i = 0; i < placeSearchList.length; i++) {
-            if (placeSearchList[i].id != null) {
-              getPhotoUrls(placeSearchList[i].id!, 500, 500)
-                  .then((photoUrls) {
-                setState(() {
-                  placeSearchList[i].photoUrls = photoUrls;
-                  logWithTag("Photo URL: ${photoUrls}",
-                      tag: "Change photourl");
-                });
-              });
-            }
-            ;
-            final markerId = MarkerId(placeSearchList[i].id!);
-            Marker marker = Marker(
-              markerId: markerId,
-              icon: (i == 0) ? mainMarker : defaultMarker,
-              position: LatLng(placeSearchList[i].location.latitude,
-                  placeSearchList[i].location.longitude),
-              // infoWindow: InfoWindow(
-              //   title: placeSearchList[i].displayName?.text,
-              //   snippet: placeSearchList[i].formattedAddress,
-              // ),
-            );
-            myMarker.add(marker);
-          }
-          placeFound = true;
-          placeOnclickFromList(
-              isShowPlaceHorizontalListFromSearch: true, index: 0);
-
-          animateBottomSheet(
-              _dragableController, defaultBottomSheetHeight / 1000)
-              .then((_) {
-            setState(() {
-              bottomSheetTop = _dragableController.pixels;
-              changeState("Search Results");
-            });
-          });
-        } else {
-          placeFound = false;
-        }
-      }));
-    }
-  }
-
-  void autocompletePlaceAndUpdate(String text) {
-    if (text.isEmpty) {
-      setState(() {
-        placeFound = true;
-        placeAutoList.clear();
-      });
-    } else {
-      logWithTag("Place auto complete: $text", tag: "SearchLocationScreen");
-      setState(() {
-        placeAutocomplete(text, mapData.currentLocation, 500)
-            .then((autoList) => setState(() {
-          if (autoList != null) {
-            placeAutoList = autoList;
-            placeFound = true;
-            changeState("Search Results");
-          } else {
-            placeFound = false;
-          }
-        }));
-      });
-    }
-  }
-
-  void locationButtonOnclick() {
-    if (mapData.currentLocation != null) {
-      animateToPosition(mapData.currentLocation!);
-    }
-    getCurrentLocation().then((value) {
-      if (mapData.currentLocation != LatLng(value.latitude, value.longitude)) {
-        mapData.currentLocation = LatLng(value.latitude, value.longitude);
-        animateToPosition(mapData.currentLocation!);
-        logWithTag("Location changed!", tag: "MyHomeScreen");
-      }
-    });
-  }
-
-  String getMainText(bool isShowFromSearch, int index) {
-    if (isShowFromSearch) {
-      return placeSearchList[index].displayName?.text ?? "";
-    } else {
-      return placeAutoList[index].structuredFormat?.mainText?.text ?? "";
-    }
-  }
-
-  String getSecondaryText(bool isShowFromSearch, int index) {
-    if (isShowFromSearch) {
-      return placeSearchList[index].formattedAddress ?? "";
-    } else {
-      return placeAutoList[index].structuredFormat?.secondaryText?.text ?? "";
-    }
-  }
-
-
-  Future<LatLng?> placeOnclickFromList(
-      {required bool isShowPlaceHorizontalListFromSearch,
-        required int index}) async {
-    this.isShowPlaceHorizontalListFromSearch =
-        isShowPlaceHorizontalListFromSearch;
-    changeState("Search Results");
-    if (isShowPlaceHorizontalListFromSearch) {
-      try {
-        mapData.changeDestinationLocationLatLgn(LatLng(
-            placeSearchList[index].location.latitude,
-            placeSearchList[index].location.longitude));
-        mapData.changeDestinationAddressAndPlaceNameAndImage(
-            placeSearchList[index]);
-        animateToPosition(
-            LatLng(placeSearchList[index].location.latitude,
-                placeSearchList[index].location.longitude),
-            zoom: 15);
-
-        markedPlace = placeSearchList[index];
-        return LatLng(placeSearchList[index].location.latitude,
-            placeSearchList[index].location.longitude);
-      } catch (e) {
-        logWithTag(
-            "Error, show from auto but the isShowFromSearch = true, changing it to false $e",
-            tag: "SearchLocationScreen");
-        isShowPlaceHorizontalListFromSearch = false;
-      }
-    }
-    // If the isShowFromSearch is true, but the index is out of range, then it will change to false and execute this
-    // Make sure that the isShowFromSearch is always have the right value
-
-    var value = await placeSearchSingle(
-        placeAutoList[index].structuredFormat?.mainText?.text ?? "");
-    if (value != null) {
-      mapData.changeDestinationLocationLatLgn(
-          LatLng(value.location.latitude, value.location.longitude));
-      mapData.changeDestinationAddressAndPlaceNameAndImage(value);
-      animateToPosition(
-        LatLng(value.location.latitude, value.location.longitude),
-      );
-      setState(() {
-        myMarker = [];
-        final markerId = MarkerId(value.id!);
-        Marker marker = Marker(
-          markerId: markerId,
-          icon: mainMarker,
-          position: LatLng(value.location.latitude, value.location.longitude),
-          // infoWindow: InfoWindow(
-          //   title: value.displayName?.text,
-          //   snippet: value.formattedAddress,
-          // ),
-        );
-        myMarker.add(marker);
-      });
-      markedPlace = value;
-      return LatLng(value.location.latitude, value.location.longitude);
-    }
-    return null;
-  }
-
-  void changeMainMarker(int index) {
-    for (int i = 0; i < myMarker.length; i++) {
-      Marker marker = myMarker[i];
-      if (marker.icon == mainMarker) {
-        Marker newMarker = Marker(
-          markerId: marker.markerId,
-          icon: defaultMarker,
-          position: marker.position,
-          //infoWindow: marker.infoWindow,
-        );
-        myMarker[i] = newMarker;
-      }
-    }
-
-    Marker markerAtIndex = myMarker[index];
-    Marker newMarkerAtIndex = Marker(
-      markerId: markerAtIndex.markerId,
-      icon: mainMarker,
-      position: markerAtIndex.position,
-      //infoWindow: markerAtIndex.infoWindow,
-    );
-    setState(() {
-      myMarker[index] = newMarkerAtIndex;
-    });
-  }
-
-
-  // Future<void> showAllMarkerInfo() async {
-  //   GoogleMapController controller = await _mapsController.future;
-  //   for (final marker in myMarker) {
-  //     controller.showMarkerInfoWindow(marker.markerId);
-  //   }
-  // }
-
-
-
-  Future<void> calcRouteFromDepToDes() async {
-    //Todo remove after test waypoint
-    //waypointsLatLgn = [];
-    if (mapData.departureLocation != null &&
-        mapData.destinationLocationLatLgn != null) {
-      List<Marker> tempList = List<Marker>.from(myMarker);
-
-      setState(() {
-        for (Marker marker in tempList) {
-          if (marker.icon == mainMarker) {
-            myMarker.removeAt(tempList.indexOf(marker));
-          }
-        }
-
-        Marker marker = Marker(
-          markerId: MarkerId("0"),
-          icon: mainMarker,
-          position: mapData.destinationLocationLatLgn!,
-        );
-        myMarker.add(marker);
-      });
-      calcRoute(
-          from: mapData.departureLocation!,
-          to: mapData.destinationLocationLatLgn!);
-      _searchFieldControllerTop.text = mapData.departureLocationName;
-      _searchFieldControllerBottom.text = mapData.destinationLocationPlaceName;
-    }
-  }
-
-  Future<void> calcRoute({required LatLng from, required LatLng to}) async {
-    changeState("Loading");
-    if (isTrafficAware) routingPreference = "TRAFFIC_AWARE";
-    routes = (await computeRoutesReturnRoute_(
-        from: from,
-        to: to,
-        travelMode: travelMode,
-        routingPreference: routingPreference,
-        computeAlternativeRoutes: isComputeAlternativeRoutes,
-        avoidTolls: isAvoidTolls,
-        avoidHighways: isAvoidHighways,
-        avoidFerries: isAvoidFerries,
-        waypoints: waypointsLatLgn))!;
-    updateEndLocationAddress();
-    drawRoute();
-    changeState("Route Planning");
-    mapData.changeDepartureLocation(from);
-    mapData.changeDestinationLocationLatLgn(to);
-    // Todo: mapdata
-  }
-
-  void drawRoute() {
-    if (routes.isNotEmpty) {
-      setState(() {
-        polylines = [];
-        for (int i = 0; i < routes[0].legs.length; i++) {
-          List<LatLng> legPoints = Polyline_.decodePolyline(
-              routes[0].legs[i].polyline.encodedPolyline);
-
-          int width;
-          switch (i % 3) {
-            case 0:
-              width = 8;
-              break;
-            case 1:
-              width = 6;
-              break;
-            case 2:
-              width = 4;
-              break;
-            default:
-              width = 8;
-          }
-
-          polylines.add(
-            Polyline(
-              polylineId: PolylineId(i.toString()),
-              color: polylineColors[i % polylineColors.length],
-              // Use a different color for each leg
-              width: width,
-              // Use different widths for each polyline
-              points: legPoints, // Add all points of the leg to the polyline
-            ),
-          );
-        }
-      });
-    }
-    //showAllMarkerInfo();
-  }
-
-  void clearRoute() {
-    setState(() {
-      polylines.clear();
-    });
-  }
-
-  Future<void> updateEndLocationAddress() async {
-    if (routes.isEmpty) return;
-    if (routes[0].legs[0].steps == null) return;
-    for (Step_ step in routes[0].legs[0].steps!) {
-      if (step.endLocationAddress == null) {
-        String placeString =
-        await convertLatLngToAddress(step.endLocation.latLng);
-        step.endLocationAddress = placeString;
-      }
-    }
-  }
-
-  void addEndLocationsToMarkers() {
-    logWithTag("addEndLocationsToMarkers", tag: "MyHomeScreen");
-    setState(() {
-      if (routes.isEmpty) return;
-      for (Step_ step in routes[0].legs[0].steps!) {
-        final markerId = MarkerId("End: ${step.endLocation.latLng}");
-        Marker marker = Marker(
-          markerId: markerId,
-          icon: endLocationMarker,
-          position: step.endLocation.latLng,
-          infoWindow: InfoWindow(
-            title: step.endLocationAddress,
-          ),
-        );
-        myMarker.add(marker);
-      }
-    });
-  }
-
-  void deleteEndLocationsFromMarkers() {
-    for (int i = 0; i < myMarker.length; i++) {
-      Marker marker = myMarker[i];
-      if (marker.icon == endLocationMarker) {
-        myMarker.removeAt(i);
-      }
-    }
-  }
-
-  Future<void> placeMarkAndRoute(
-      {required bool isShowPlaceHorizontalListFromSearch,
-        required int index}) async {
-    changeState("Loading");
-    this.isShowPlaceHorizontalListFromSearch =
-        isShowPlaceHorizontalListFromSearch;
-    myMarker.removeWhere((marker) => marker.icon != mainMarker);
-    if (isShowPlaceHorizontalListFromSearch) {
-      mapData.destinationLocationLatLgn = LatLng(
-          placeSearchList[index].location.latitude,
-          placeSearchList[index].location.longitude);
-      try {
-        markedPlace = placeSearchList[index];
-        calcRoute(
-            from: mapData.currentLocation!,
-            to: LatLng(placeSearchList[index].location.latitude,
-                placeSearchList[index].location.longitude));
-        return;
-      } catch (e) {
-        logWithTag(
-            "Error, show from auto but the isShowFromSearch = true, changing it to false $e",
-            tag: "SearchLocationScreen");
-        isShowPlaceHorizontalListFromSearch = false;
-      }
-    }
-    // If the isShowFromSearch is true, but the index is out of range, then it will change to false and execute this
-    // Make sure that the isShowFromSearch is always have the right value
-    var value = await placeSearchSingle(
-        placeAutoList[index].structuredFormat?.mainText?.text ?? "");
-    if (value != null) {
-      setState(() {
-        myMarker = [];
-        final markerId = MarkerId(value.id!);
-        Marker marker = Marker(
-          markerId: markerId,
-          icon: mainMarker,
-          position: LatLng(value.location.latitude, value.location.longitude),
-          // infoWindow: InfoWindow(
-          //   title: value.displayName?.text,
-          //   snippet: value.formattedAddress,
-          // ),
-        );
-        myMarker.add(marker);
-      });
-      markedPlace = value;
-      calcRoute(
-          from: mapData.currentLocation!,
-          to: LatLng(value.location.latitude, value.location.longitude));
-      return;
-    }
-    logWithTag("Error, route not found", tag: "SearchLocationScreen");
-    changeState("Search Results");
-    return;
-  }
+  
 
 
 
@@ -1875,7 +1110,7 @@ class _MyHomeScreenState extends State<MyHomeScreen>
                                     "")
                                     ? Image.network(
                                   mapData
-                                      .destinationLocationPhotoUrl!,
+                                      .destinationLocationPhotoUrl,
                                   width: 80,
                                   height: 100,
                                   fit: BoxFit.cover,
@@ -2329,51 +1564,7 @@ class _MyHomeScreenState extends State<MyHomeScreen>
                 : (state == stateMap["Loading"]!)
                 ?
             // Bottom sheet loading
-            DraggableScrollableSheet(
-              controller: _dragableController,
-              initialChildSize:
-              defaultBottomSheetHeight /
-                  1000,
-              minChildSize: 0.15,
-              maxChildSize: 1,
-              builder: (BuildContext context,
-                  ScrollController
-                  scrollController) {
-                return ClipRRect(
-                  borderRadius:
-                  const BorderRadius.only(
-                    topLeft:
-                    Radius.circular(24.0),
-                    topRight:
-                    Radius.circular(24.0),
-                  ),
-                  child: Container(
-                    color: Colors.white,
-                    child:
-                    SingleChildScrollView(
-                      primary: false,
-                      controller:
-                      scrollController,
-                      child: Column(
-                          children: <Widget>[
-                            const Pill(),
-                            SizedBox(
-                              height: 40,
-                            ),
-                            LoadingIndicator(
-                              color: Colors
-                                  .green,
-                              onPressed: () {
-                                changeState(
-                                    "Search Results");
-                              },
-                            ),
-                          ]),
-                    ),
-                  ),
-                );
-              },
-            )
+            BottomSheetLoading(mapData)
                 :
 
             // Bottom sheet none
@@ -2395,6 +1586,188 @@ class MapData {
   String destinationLocationPhotoUrl;
   String destinationID = "";
 
+  //Controller
+  final Completer<GoogleMapController> _mapsController = Completer();
+  ScrollController _listviewScrollController = ScrollController();
+  DraggableScrollableController _dragableController =
+  DraggableScrollableController();
+  double? bottomSheetTop;
+  String textFieldTopText = "Tìm kiếm";
+  String textFieldBottomText = "";
+
+  //Animation
+  late AnimationController _animationController;
+  late Animation<double> moveAnimation;
+
+  //double currentZoomLevel = 15;
+
+  //GeoLocation
+  bool isHaveLastSessionLocation = false;
+  LatLng centerLocation = LatLng(10.7981542, 106.6614047);
+
+  void animateToPosition(LatLng position, {double zoom = 13}) async {
+    logWithTag("Animate to position: $position", tag: "MyHomeScreen");
+    GoogleMapController controller = await _mapsController.future;
+    CameraPosition cameraPosition = CameraPosition(
+      target: position,
+      zoom: zoom, // Change this value to your desired zoom level
+    );
+    controller.animateCamera(CameraUpdate.newCameraPosition(cameraPosition));
+  }
+  void animateToPositionNoZoom(LatLng position) async {
+    logWithTag("Animate to position: $position", tag: "MyHomeScreen");
+    GoogleMapController controller = await _mapsController.future;
+    CameraPosition cameraPosition = CameraPosition(
+      target: position,
+      zoom: await controller.getZoomLevel(),
+    );
+    controller.animateCamera(CameraUpdate.newCameraPosition(cameraPosition));
+  }
+  Future<void> placeClickLatLngFromMap(LatLng position) async {
+    animateToPositionNoZoom(
+      LatLng(position.latitude, position.longitude),
+    );
+    isShowPlaceHorizontalList = false;
+    changeState("Loading Can Route");
+    mapData.changeDestinationLocationLatLgn(position);
+    setState(() {
+      myMarker = [];
+      waypointsLatLgn = [];
+      waypointNames = [];
+      final markerId = MarkerId("0");
+      Marker marker = Marker(
+        markerId: markerId,
+        icon: mainMarker,
+        position: LatLng(position.latitude, position.longitude),
+      );
+      myMarker.add(marker);
+    });
+    try {
+      String placeString = await convertLatLngToAddress(position);
+      var value = await placeSearchSingle(placeString);
+      if (value != null) {
+        getPhotoUrls(value.id!, 400, 400).then((photoUrls) {
+          value.photoUrls = photoUrls;
+          setState(() {
+            mapData.changeDestinationImage(photoUrls);
+          });
+        });
+        markedPlace = value;
+        mapData.changeDestinationAddressAndPlaceNameAndImage(value);
+        if (state == stateMap["Loading Can Route"]!)
+          changeState("Search Results");
+      } else if (state == stateMap["Loading Can Route"]!)
+        changeState("Search Results None");
+    } catch (e) {
+      logWithTag("Error, place click from map: $e",
+          tag: "SearchLocationScreen");
+    }
+  }
+
+  //Location
+  List<PlaceAutocomplete_> placeAutoList = [];
+  List<PlaceSearch_> placeSearchList = [];
+  late PlaceSearch_ markedPlace;
+  bool placeFound = true;
+  List<Marker> myMarker = [];
+  BitmapDescriptor defaultMarker =
+  BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
+  BitmapDescriptor mainMarker =
+  BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+  BitmapDescriptor endLocationMarker =
+  BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
+
+  List<BitmapDescriptor> waypointMarkers = [
+    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+    //A
+    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
+    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
+    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueMagenta),
+    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+    //H
+    BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+    //No letter
+  ];
+
+  List<String> waypointMarkersSource = [
+    "assets/icons/waypoints/a.svg",
+    "assets/icons/waypoints/b.svg",
+    "assets/icons/waypoints/c.svg",
+    "assets/icons/waypoints/d.svg",
+    "assets/icons/waypoints/e.svg",
+    "assets/icons/waypoints/f.svg",
+    "assets/icons/waypoints/g.svg",
+    "assets/icons/waypoints/h.svg",
+    "assets/icons/marker_waypoint.svg",
+  ];
+  Timer? _debounce;
+  bool isShowPlaceHorizontalList = false; // show the location search component
+  bool isShowPlaceHorizontalListFromSearch =
+  true; // true: show from search, false: show from autocomplete
+
+  //Route
+  List<Route_> routes = [];
+
+  // Future<List<LatLng>?> polylinePoints = Future.value(null);
+  List<Polyline> polylines = [];
+  List<LatLng> polylinePointsList = [];
+  List<Color> polylineColors = [
+    Colors.green[700]!,
+    Colors.blue[700]!,
+    Colors.yellow[700]!,
+    Colors.purple[700]!,
+    Colors.orange[700]!,
+    Colors.brown[700]!,
+    Colors.cyan[700]!,
+    Colors.lime[700]!,
+    Colors.teal[700]!,
+    Colors.indigo[700]!,
+  ];
+  String travelMode = "DRIVE";
+  String routingPreference = "TRAFFIC_AWARE";
+  bool isTrafficAware = true;
+  bool isComputeAlternativeRoutes = false;
+  bool isAvoidTolls = false;
+  bool isAvoidHighways = false;
+  bool isAvoidFerries = false;
+  bool isFullScreen = false;
+  List<bool> isChange = [false, false, false, false, false, false];
+  bool isCalcRouteFromCurrentLocation = true;
+  List<LatLng> waypointsLatLgn = [];
+  List<String> waypointNames = [];
+
+  //Test
+
+  static CameraPosition? _initialCameraPosition;
+  static const LatLng _airPort = LatLng(10.8114795, 106.6548157);
+  static const LatLng _dormitory = LatLng(10.8798036, 106.8052206);
+
+  //State
+  static const Map<String, int> stateMap = {
+    "Default": 0,
+    "Search": 1,
+    "Search Results": 2,
+    "Route Planning": 3,
+    "Navigation": 4,
+    "Search Results None": 5,
+    "Loading Can Route": 6,
+    "Add Waypoint": 7,
+    "Loading": 10,
+  };
+  int state = stateMap["Default"]!;
+
+  String stateFromInt(int stateValue) {
+    return stateMap.entries
+        .firstWhere((entry) => entry.value == stateValue)
+        .key;
+  }
+
+  //Map style
+  MapType _currentMapType = MapType.normal;
+
   MapData({
     this.currentLocation,
     this.departureLocation,
@@ -2404,6 +1777,596 @@ class MapData {
     this.destinationLocationPlaceName = "",
     this.destinationLocationPhotoUrl = "",
   });
+
+
+  //Search Field
+  late TextEditingController _searchFieldControllerTop;
+  late TextEditingController _searchFieldControllerBottom;
+  late FocusNode _searchFieldFocusNodeTop;
+  late FocusNode _searchFieldFocusNodeBottom;
+
+/*
+ * This region contains functions.
+ */
+  // void showPlaceHorizontalList(
+  //     {required bool show, String nextState = "Default"}) {
+  //     isShowPlaceHorizontalList = show;
+  //     show == false
+  //         ? changeState(nextState)
+  //         : changeState("Search Results");
+  // }
+  void updateOptionsBasedOnChanges() {
+    for (int i = 0; i < isChange.length; i++) {
+      if (isChange[i]) {
+        switch (i) {
+          case 0:
+            isTrafficAware = !isTrafficAware;
+            break;
+          case 1:
+            isComputeAlternativeRoutes = !isComputeAlternativeRoutes;
+            break;
+          case 2:
+            isAvoidTolls = !isAvoidTolls;
+            break;
+          case 3:
+            isAvoidHighways = !isAvoidHighways;
+            break;
+          case 4:
+            isAvoidFerries = !isAvoidFerries;
+            break;
+          case 5:
+            isFullScreen = !isFullScreen;
+            break;
+        }
+        // Reset the change flag for this option
+        isChange[i] = false;
+      }
+    }
+  }
+
+  void showOptionsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Tùy chọn đường đi'),
+              content: SingleChildScrollView(
+                child: ListBody(
+                  children: <Widget>[
+                    CheckboxListTile(
+                      title: const Text('Ảnh hưởng giao thông'),
+                      value: isTrafficAware,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          isTrafficAware = value!;
+                          isChange[0] = true;
+                        });
+                      },
+                    ),
+                    CheckboxListTile(
+                      title: const Text('Tính đường đi thay thế'),
+                      value: isComputeAlternativeRoutes,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          isComputeAlternativeRoutes = value!;
+                          isChange[1] = true;
+                        });
+                      },
+                    ),
+                    CheckboxListTile(
+                      title: const Text('Tránh trạm thu phí'),
+                      value: isAvoidTolls,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          isAvoidTolls = value!;
+                          isChange[2] = true;
+                        });
+                      },
+                    ),
+                    CheckboxListTile(
+                      title: const Text('Tránh đường cao tốc'),
+                      value: isAvoidHighways,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          isAvoidHighways = value!;
+                          isChange[3] = true;
+                        });
+                      },
+                    ),
+                    CheckboxListTile(
+                      title: const Text('Tránh phà'),
+                      value: isAvoidFerries,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          isAvoidFerries = value!;
+                          isChange[4] = true;
+                        });
+                      },
+                    ),
+                    CheckboxListTile(
+                      title: const Text('Hiện các điểm rẽ'),
+                      value: isFullScreen,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          isFullScreen = value!;
+                          isChange[5] = true;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('Hủy bỏ'),
+                  onPressed: () {
+                    setState(() {
+                      updateOptionsBasedOnChanges();
+                    });
+                    logWithTag(
+                        "Options: $isTrafficAware, $isComputeAlternativeRoutes, $isAvoidTolls, $isAvoidHighways, $isAvoidFerries",
+                        tag: "SearchLocationScreen");
+                    Navigator.of(context).pop();
+                  },
+                ),
+                TextButton(
+                  child: const Text('Áp dụng'),
+                  onPressed: () {
+                    if (isFullScreen) {
+                      Navigator.of(context).pop();
+                      changeState("Navigation");
+                      return;
+                    }
+
+                    logWithTag(
+                        "Options: $isTrafficAware, $isComputeAlternativeRoutes, $isAvoidTolls, $isAvoidHighways, $isAvoidFerries",
+                        tag: "SearchLocationScreen");
+                    calcRoute(
+                        from: mapData.departureLocation!,
+                        to: mapData.destinationLocationLatLgn!);
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void changeState(String stateString) {
+    if (!stateMap.containsKey(stateString)) {
+      throw Exception('Invalid state: $stateString');
+    }
+
+    if (stateString != "Navigation") {
+      isFullScreen = false;
+      deleteEndLocationsFromMarkers();
+    } else
+      addEndLocationsToMarkers();
+    if (stateString == "Default") {
+      isShowPlaceHorizontalList = false;
+      polylines.clear();
+      travelMode = "DRIVE";
+      mapData.departureLocation = mapData.currentLocation;
+      mapData.departureLocationName = "Vị trí hiện tại";
+    }
+
+    if (stateString == "Search Results") {
+      isShowPlaceHorizontalList = true;
+      polylines.clear();
+      travelMode = "TWO_WHEELER";
+      //Todo remove after test waypoint
+      //waypointsLatLgn = [];
+    } else {
+      isShowPlaceHorizontalList = false;
+    }
+
+    if (stateString == "Route Planning") {
+      drawRoute();
+    } else if (stateString == "Add Waypoint") {}
+
+    setState(() {
+      state = stateMap[stateString]!;
+    });
+  }
+
+  void searchPlaceAndUpdate(String text) {
+    if (text.isEmpty) {
+      placeFound = true;
+      placeSearchList.clear();
+      setState(() {});
+    } else {
+      myMarker = [];
+      logWithTag("Place search: $text", tag: "SearchLocationScreen");
+      placeSearch(text).then((searchList) => setState(() {
+        if (searchList != null) {
+          placeSearchList = searchList;
+          for (int i = 0; i < placeSearchList.length; i++) {
+            if (placeSearchList[i].id != null) {
+              getPhotoUrls(placeSearchList[i].id!, 500, 500)
+                  .then((photoUrls) {
+                setState(() {
+                  placeSearchList[i].photoUrls = photoUrls;
+                  logWithTag("Photo URL: ${photoUrls}",
+                      tag: "Change photourl");
+                });
+              });
+            }
+            ;
+            final markerId = MarkerId(placeSearchList[i].id!);
+            Marker marker = Marker(
+              markerId: markerId,
+              icon: (i == 0) ? mainMarker : defaultMarker,
+              position: LatLng(placeSearchList[i].location.latitude,
+                  placeSearchList[i].location.longitude),
+              // infoWindow: InfoWindow(
+              //   title: placeSearchList[i].displayName?.text,
+              //   snippet: placeSearchList[i].formattedAddress,
+              // ),
+            );
+            myMarker.add(marker);
+          }
+          placeFound = true;
+          placeOnclickFromList(
+              isShowPlaceHorizontalListFromSearch: true, index: 0);
+
+          animateBottomSheet(
+              _dragableController, defaultBottomSheetHeight / 1000)
+              .then((_) {
+            setState(() {
+              bottomSheetTop = _dragableController.pixels;
+              changeState("Search Results");
+            });
+          });
+        } else {
+          placeFound = false;
+        }
+      }));
+    }
+  }
+
+  void autocompletePlaceAndUpdate(String text) {
+    if (text.isEmpty) {
+      setState(() {
+        placeFound = true;
+        placeAutoList.clear();
+      });
+    } else {
+      logWithTag("Place auto complete: $text", tag: "SearchLocationScreen");
+      setState(() {
+        placeAutocomplete(text, mapData.currentLocation, 500)
+            .then((autoList) => setState(() {
+          if (autoList != null) {
+            placeAutoList = autoList;
+            placeFound = true;
+            changeState("Search Results");
+          } else {
+            placeFound = false;
+          }
+        }));
+      });
+    }
+  }
+
+  void locationButtonOnclick() {
+    if (mapData.currentLocation != null) {
+      animateToPosition(mapData.currentLocation!);
+    }
+    getCurrentLocation().then((value) {
+      if (mapData.currentLocation != LatLng(value.latitude, value.longitude)) {
+        mapData.currentLocation = LatLng(value.latitude, value.longitude);
+        animateToPosition(mapData.currentLocation!);
+        logWithTag("Location changed!", tag: "MyHomeScreen");
+      }
+    });
+  }
+
+  String getMainText(bool isShowFromSearch, int index) {
+    if (isShowFromSearch) {
+      return placeSearchList[index].displayName?.text ?? "";
+    } else {
+      return placeAutoList[index].structuredFormat?.mainText?.text ?? "";
+    }
+  }
+
+  String getSecondaryText(bool isShowFromSearch, int index) {
+    if (isShowFromSearch) {
+      return placeSearchList[index].formattedAddress ?? "";
+    } else {
+      return placeAutoList[index].structuredFormat?.secondaryText?.text ?? "";
+    }
+  }
+
+
+  Future<LatLng?> placeOnclickFromList(
+      {required bool isShowPlaceHorizontalListFromSearch,
+        required int index}) async {
+    this.isShowPlaceHorizontalListFromSearch =
+        isShowPlaceHorizontalListFromSearch;
+    changeState("Search Results");
+    if (isShowPlaceHorizontalListFromSearch) {
+      try {
+        mapData.changeDestinationLocationLatLgn(LatLng(
+            placeSearchList[index].location.latitude,
+            placeSearchList[index].location.longitude));
+        mapData.changeDestinationAddressAndPlaceNameAndImage(
+            placeSearchList[index]);
+        animateToPosition(
+            LatLng(placeSearchList[index].location.latitude,
+                placeSearchList[index].location.longitude),
+            zoom: 15);
+
+        markedPlace = placeSearchList[index];
+        return LatLng(placeSearchList[index].location.latitude,
+            placeSearchList[index].location.longitude);
+      } catch (e) {
+        logWithTag(
+            "Error, show from auto but the isShowFromSearch = true, changing it to false $e",
+            tag: "SearchLocationScreen");
+        isShowPlaceHorizontalListFromSearch = false;
+      }
+    }
+    // If the isShowFromSearch is true, but the index is out of range, then it will change to false and execute this
+    // Make sure that the isShowFromSearch is always have the right value
+
+    var value = await placeSearchSingle(
+        placeAutoList[index].structuredFormat?.mainText?.text ?? "");
+    if (value != null) {
+      mapData.changeDestinationLocationLatLgn(
+          LatLng(value.location.latitude, value.location.longitude));
+      mapData.changeDestinationAddressAndPlaceNameAndImage(value);
+      animateToPosition(
+        LatLng(value.location.latitude, value.location.longitude),
+      );
+      setState(() {
+        myMarker = [];
+        final markerId = MarkerId(value.id!);
+        Marker marker = Marker(
+          markerId: markerId,
+          icon: mainMarker,
+          position: LatLng(value.location.latitude, value.location.longitude),
+          // infoWindow: InfoWindow(
+          //   title: value.displayName?.text,
+          //   snippet: value.formattedAddress,
+          // ),
+        );
+        myMarker.add(marker);
+      });
+      markedPlace = value;
+      return LatLng(value.location.latitude, value.location.longitude);
+    }
+    return null;
+  }
+
+  void changeMainMarker(int index) {
+    for (int i = 0; i < myMarker.length; i++) {
+      Marker marker = myMarker[i];
+      if (marker.icon == mainMarker) {
+        Marker newMarker = Marker(
+          markerId: marker.markerId,
+          icon: defaultMarker,
+          position: marker.position,
+          //infoWindow: marker.infoWindow,
+        );
+        myMarker[i] = newMarker;
+      }
+    }
+
+    Marker markerAtIndex = myMarker[index];
+    Marker newMarkerAtIndex = Marker(
+      markerId: markerAtIndex.markerId,
+      icon: mainMarker,
+      position: markerAtIndex.position,
+      //infoWindow: markerAtIndex.infoWindow,
+    );
+    setState(() {
+      myMarker[index] = newMarkerAtIndex;
+    });
+  }
+
+
+  // Future<void> showAllMarkerInfo() async {
+  //   GoogleMapController controller = await _mapsController.future;
+  //   for (final marker in myMarker) {
+  //     controller.showMarkerInfoWindow(marker.markerId);
+  //   }
+  // }
+
+
+
+  Future<void> calcRouteFromDepToDes() async {
+    //Todo remove after test waypoint
+    //waypointsLatLgn = [];
+    if (mapData.departureLocation != null &&
+        mapData.destinationLocationLatLgn != null) {
+      List<Marker> tempList = List<Marker>.from(myMarker);
+
+      setState(() {
+        for (Marker marker in tempList) {
+          if (marker.icon == mainMarker) {
+            myMarker.removeAt(tempList.indexOf(marker));
+          }
+        }
+
+        Marker marker = Marker(
+          markerId: MarkerId("0"),
+          icon: mainMarker,
+          position: mapData.destinationLocationLatLgn!,
+        );
+        myMarker.add(marker);
+      });
+      calcRoute(
+          from: mapData.departureLocation!,
+          to: mapData.destinationLocationLatLgn!);
+      _searchFieldControllerTop.text = mapData.departureLocationName;
+      _searchFieldControllerBottom.text = mapData.destinationLocationPlaceName;
+    }
+  }
+
+  Future<void> calcRoute({required LatLng from, required LatLng to}) async {
+    changeState("Loading");
+    if (isTrafficAware) routingPreference = "TRAFFIC_AWARE";
+    routes = (await computeRoutesReturnRoute_(
+        from: from,
+        to: to,
+        travelMode: travelMode,
+        routingPreference: routingPreference,
+        computeAlternativeRoutes: isComputeAlternativeRoutes,
+        avoidTolls: isAvoidTolls,
+        avoidHighways: isAvoidHighways,
+        avoidFerries: isAvoidFerries,
+        waypoints: waypointsLatLgn))!;
+    updateEndLocationAddress();
+    drawRoute();
+    changeState("Route Planning");
+    mapData.changeDepartureLocation(from);
+    mapData.changeDestinationLocationLatLgn(to);
+    // Todo: mapdata
+  }
+
+  void drawRoute() {
+    if (routes.isNotEmpty) {
+      setState(() {
+        polylines = [];
+        for (int i = 0; i < routes[0].legs.length; i++) {
+          List<LatLng> legPoints = Polyline_.decodePolyline(
+              routes[0].legs[i].polyline.encodedPolyline);
+
+          int width;
+          switch (i % 3) {
+            case 0:
+              width = 8;
+              break;
+            case 1:
+              width = 6;
+              break;
+            case 2:
+              width = 4;
+              break;
+            default:
+              width = 8;
+          }
+
+          polylines.add(
+            Polyline(
+              polylineId: PolylineId(i.toString()),
+              color: polylineColors[i % polylineColors.length],
+              // Use a different color for each leg
+              width: width,
+              // Use different widths for each polyline
+              points: legPoints, // Add all points of the leg to the polyline
+            ),
+          );
+        }
+      });
+    }
+    //showAllMarkerInfo();
+  }
+
+  void clearRoute() {
+    setState(() {
+      polylines.clear();
+    });
+  }
+
+  Future<void> updateEndLocationAddress() async {
+    if (routes.isEmpty) return;
+    if (routes[0].legs[0].steps == null) return;
+    for (Step_ step in routes[0].legs[0].steps!) {
+      if (step.endLocationAddress == null) {
+        String placeString =
+        await convertLatLngToAddress(step.endLocation.latLng);
+        step.endLocationAddress = placeString;
+      }
+    }
+  }
+
+  void addEndLocationsToMarkers() {
+    logWithTag("addEndLocationsToMarkers", tag: "MyHomeScreen");
+    setState(() {
+      if (routes.isEmpty) return;
+      for (Step_ step in routes[0].legs[0].steps!) {
+        final markerId = MarkerId("End: ${step.endLocation.latLng}");
+        Marker marker = Marker(
+          markerId: markerId,
+          icon: endLocationMarker,
+          position: step.endLocation.latLng,
+          infoWindow: InfoWindow(
+            title: step.endLocationAddress,
+          ),
+        );
+        myMarker.add(marker);
+      }
+    });
+  }
+
+  void deleteEndLocationsFromMarkers() {
+    for (int i = 0; i < myMarker.length; i++) {
+      Marker marker = myMarker[i];
+      if (marker.icon == endLocationMarker) {
+        myMarker.removeAt(i);
+      }
+    }
+  }
+
+  Future<void> placeMarkAndRoute(
+      {required bool isShowPlaceHorizontalListFromSearch,
+        required int index}) async {
+    changeState("Loading");
+    this.isShowPlaceHorizontalListFromSearch =
+        isShowPlaceHorizontalListFromSearch;
+    myMarker.removeWhere((marker) => marker.icon != mainMarker);
+    if (isShowPlaceHorizontalListFromSearch) {
+      mapData.destinationLocationLatLgn = LatLng(
+          placeSearchList[index].location.latitude,
+          placeSearchList[index].location.longitude);
+      try {
+        markedPlace = placeSearchList[index];
+        calcRoute(
+            from: mapData.currentLocation!,
+            to: LatLng(placeSearchList[index].location.latitude,
+                placeSearchList[index].location.longitude));
+        return;
+      } catch (e) {
+        logWithTag(
+            "Error, show from auto but the isShowFromSearch = true, changing it to false $e",
+            tag: "SearchLocationScreen");
+        isShowPlaceHorizontalListFromSearch = false;
+      }
+    }
+    // If the isShowFromSearch is true, but the index is out of range, then it will change to false and execute this
+    // Make sure that the isShowFromSearch is always have the right value
+    var value = await placeSearchSingle(
+        placeAutoList[index].structuredFormat?.mainText?.text ?? "");
+    if (value != null) {
+      setState(() {
+        myMarker = [];
+        final markerId = MarkerId(value.id!);
+        Marker marker = Marker(
+          markerId: markerId,
+          icon: mainMarker,
+          position: LatLng(value.location.latitude, value.location.longitude),
+          // infoWindow: InfoWindow(
+          //   title: value.displayName?.text,
+          //   snippet: value.formattedAddress,
+          // ),
+        );
+        myMarker.add(marker);
+      });
+      markedPlace = value;
+      calcRoute(
+          from: mapData.currentLocation!,
+          to: LatLng(value.location.latitude, value.location.longitude));
+      return;
+    }
+    logWithTag("Error, route not found", tag: "SearchLocationScreen");
+    changeState("Search Results");
+    return;
+  }
 
   void changeDestinationLocationLatLgn(LatLng latLng) {
     destinationLocationLatLgn = latLng;
