@@ -50,6 +50,12 @@ dependencies:
   path_provider: ^2.1.2
   share_plus: ^9.0.0
 
+  google_maps_flutter_platform_interface: any
+  cloud_firestore: any
+  firebase_auth: any
+  google_sign_in: any
+  firebase_database: any
+  geocoding_platform_interface: any
 dev_dependencies:
   firebase_auth: ^4.3.1
   firebase_database: ^10.5.3
