@@ -86,3 +86,4 @@ Contributions are welcome! If you have ideas for improvements or bug fixes, plea
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
